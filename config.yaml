@@ -1,0 +1,98 @@
+# JobHunting 配置
+# 启动前复制为 .env 并填入飞书配置
+
+# ── 职位来源 ──────────────────────────────────────────────────────────
+sources:
+  remotive:
+    enabled: true
+    keywords:
+      - "AI agent"
+      - "LLM"
+      - "LangChain"
+      - "blockchain"
+      - "DeFi"
+      - "smart contract"
+      - "Rust developer"
+      - "Golang blockchain"
+      - "quantitative trading"
+      - "crypto"
+    exclude_keywords:
+      - "intern"
+      - "internship"
+      - "part time"
+      - "volunteer"
+    max_results: 100
+
+  cryptjobslist:
+    enabled: true
+    keywords:
+      - "blockchain"
+      - "defi"
+      - "smart contract"
+      - "solidity"
+      - "rust developer"
+    exclude_keywords:
+      - "intern"
+    max_results: 50
+
+  web3career:
+    enabled: true
+    keywords:
+      - "blockchain"
+      - "defi"
+      - "solidity"
+      - "web3"
+    exclude_keywords:
+      - "intern"
+    max_results: 50
+
+# ── 评分配置 ──────────────────────────────────────────────────────────
+scoring:
+  core_keywords:
+    - "ai agent"
+    - "llm"
+    - "langchain"
+    - "openai"
+    - "gpt"
+    - "agentic"
+    - "defi"
+    - "smart contract"
+    - "solidity"
+    - "web3"
+    - "blockchain"
+    - "crypto"
+    - "trading"
+    - "quantitative"
+    - "backend"
+    - "golang"
+    - "rust"
+    - "distributed"
+    - "microservice"
+    - "fastapi"
+
+  secondary_keywords:
+    - "python"
+    - "kubernetes"
+    - "docker"
+    - "aws"
+    - "gcp"
+    - "postgresql"
+    - "redis"
+    - "git"
+    - "ci/cd"
+    - "devops"
+
+  core_weight: 15.0
+  secondary_weight: 5.0
+  salary_bonus: 10.0
+  min_score: 40.0
+  max_score: 100.0
+
+# ── 飞书推送 ──────────────────────────────────────────────────────────
+notify:
+  enabled: true
+  daily_max: 15
+
+# ── 全局 ─────────────────────────────────────────────────────────────
+dedup_days: 7
+log_level: INFO
