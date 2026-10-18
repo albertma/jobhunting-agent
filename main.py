@@ -172,6 +172,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="cmd")
 
     sub.add_parser("init", help="交互式初始化（生成 profile.yaml + config.yaml）")
+    sub.add_parser("agent", help="交互式 Agent 对话界面（自然语言选职位、聊 JD、生成材料）")
 
     r = sub.add_parser("run", help="抓取职位")
     r.add_argument("--push", action="store_true", help="推送飞书")
@@ -205,7 +206,10 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.cmd == "init":
+    if args.cmd == "agent":
+        from jobhunting.agent import cmd_agent
+        cmd_agent()
+    elif args.cmd == "init":
         from jobhunting.wizard import run_wizard
         run_wizard()
     elif args.cmd == "run":

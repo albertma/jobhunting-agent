@@ -87,11 +87,15 @@ _client: Any = None
 
 
 def is_llm_enabled() -> bool:
-    """检查 LLM 是否已配置并启用"""
+    """检查 LLM 是否可用（config.yaml enabled=true 或环境变量已设置）"""
+    import os
     cfg = _load_llm_config()
-    if not cfg.get("enabled", False):
-        return False
-    return True
+    if cfg.get("enabled", False):
+        return True
+    # 环境变量直接设置了 LLM 凭据，视为启用
+    if os.environ.get("LLM_API_KEY") or os.environ.get("AI_INVESTMENT_LLM_API_KEY"):
+        return True
+    return False
 
 
 def _build_client() -> Any:
