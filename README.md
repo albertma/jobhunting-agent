@@ -30,15 +30,38 @@ surfaces the openings worth your time, with materials ready to send.
 - **Location-aware**: +bonus when a posting covers your region (e.g. APAC),
   −penalty when it's US/EU-timezone-locked or on-site in a city you can't work from
 - **Daily digest**: Feishu (Lark) rich card or Telegram Markdown
-- **Application kit** (`draft`): fit verdict (is it worth applying?),
-  a tailored English cover letter, resume-focus suggestions ranked against the JD,
-  and likely interview questions
+- **LLM-powered agent** (`chat`): conversational interface for any job posting:
+  - `chat --fit <job_id>` — LLM reads full JD + your profile → match score,
+    honest strengths/gaps analysis, salary hint, and apply recommendation
+  - `chat --draft <job_id>` — LLM writes a genuine personalized cover letter
+  - `chat <job_id> "your question"` — ask anything about a job in plain English
+  - `chat <job_id>` — interactive Q&A mode (type questions, get answers)
+- **Template-free drafting** (`draft`): fit verdict, keyword-ranked resume tips,
+  and likely interview questions — works offline, no LLM needed
 - **Follow-up tracking**: `applied` starts a timer; no reply after N days →
   you get a nudge; `replied` stops it
 - **Ops-ready**: SQLite with auto-pruning, rotating logs, run history,
   alert when all sources fail, unit tests
 
 Everything personal lives in `profile.yaml` + `.env` — both gitignored.
+
+### LLM agent (optional)
+
+Set `llm.enabled: true` in `config.yaml`, then configure API credentials via
+environment variables or in `config.yaml`:
+
+```yaml
+llm:
+  enabled: true
+  # provider: anthropic          # MiniMax / DeepSeek 等兼容 Anthropic 协议
+  # api_key: sk-your-key
+  # base_url: https://api.minimaxi.com/anthropic
+  # model: MiniMax-M2.7-highspeed
+```
+
+Or export the corresponding env vars (`AI_INVESTMENT_LLM_API_KEY` etc. —
+compatible with FI-Agent credentials). Run `python main.py chat --fit <job_id>`
+to verify.
 
 ## Quick start
 
@@ -85,7 +108,11 @@ crontab -e
 | `init` | Interactive onboarding (profile + scoring config, region-aware) |
 | `run [--push]` | Fetch → filter → score → store; optionally notify |
 | `list -n 20` | Recent jobs |
-| `draft <job_id>` | Application kit: fit verdict + cover letter + resume tips + interview questions |
+| `chat --fit <job_id>` | LLM 深度匹配分析（JD + 画像 → 真实匹配分/优势/缺口/推荐） |
+| `chat --draft <job_id>` | LLM 生成定制 Cover Letter（完全自然语言版） |
+| `chat <job_id> "question"` | LLM 对话：直接问职位相关问题 |
+| `chat <job_id>` | LLM 交互式 Q&A（逐条提问） |
+| `draft <job_id>` | Application kit (无 LLM 模式): fit verdict + resume tips + interview questions |
 | `applied <job_id>` | Mark applied (starts follow-up timer) |
 | `replied <job_id>` | Log a reply (stops follow-up reminders) |
 | `followups [--push]` | List/push stale applications |

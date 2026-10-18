@@ -187,8 +187,11 @@ def main() -> None:
     replied_p = sub.add_parser("replied", help="登记已收到回复（停止跟进提醒）")
     replied_p.add_argument("job_id", help="Job ID")
 
-    followups_p = sub.add_parser("followups", help="查看/推送待跟进的投递")
-    followups_p.add_argument("--push", action="store_true", help="推送到飞书")
+    chat_p = sub.add_parser("chat", help="LLM 对话：询问职位 ")
+    chat_p.add_argument("--fit", action="store_true", help="LLM 深度匹配分析（job_fit_analysis）")
+    chat_p.add_argument("--draft", action="store_true", help="LLM 生成定制 Cover Letter（完整自然语言版）")
+    chat_p.add_argument("job_id", nargs="?", help="Job ID")
+    chat_p.add_argument("question", nargs="?", help="直接提问（不加 --fit/--draft 时生效）")
 
     sub.add_parser("rescore", help="重算全库评分（调参后使用）")
 
@@ -213,6 +216,15 @@ def main() -> None:
         cmd_applied(args.job_id)
     elif args.cmd == "replied":
         cmd_replied(args.job_id)
+    elif args.cmd == "chat":
+        from jobhunting.chat import cmd_chat
+        cmd_chat(
+            job_id=args.job_id,
+            question=args.question,
+            fit_only=args.fit,
+            draft_only=args.draft,
+            profile_path=None,
+        )
     elif args.cmd == "followups":
         cmd_followups(push=args.push)
     elif args.cmd == "rescore":
