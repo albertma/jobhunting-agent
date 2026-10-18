@@ -1,94 +1,144 @@
-# JobHunting — Remote 职位搜索机器人
+# JobHunting Agent 🤖
 
-面向 AI Agent / 区块链方向，自动抓取 + 评分 + 飞书推送。
+**A personal job-search agent** — it watches remote job boards, scores every
+opening *against your profile*, pushes a daily digest to your chat, drafts
+tailored application materials, and nags you to follow up.
 
-## 功能
-
-- **多源抓取**：Remotive API + CryptoJobsList + Web3.career
-- **关键词过滤**：排除 intern/part-time
-- **匹配度评分**：核心词（AI Agent / LLM / DeFi / Solidity）权重 ×15，次要词 ×5，标题加成
-- **去重**：7 天内重复职位自动跳过
-- **飞书推送**：每日汇总到飞书群
-
-## 安装
-
-```bash
-cd jobhunting
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-cp .env.example .env
-# 编辑 .env 填入飞书配置（从 FI-Agent/.env 复制）
+```
+fetch → filter → score (title-first, location-aware) → notify → draft → follow up
 ```
 
-## 飞书配置
+> 🇨🇳 中文简介见下方。个人求职 Agent：自动抓取远程职位、按你的画像评分、
+> 每日推送到飞书/Telegram、一键生成定制申请包、投递超时自动提醒跟进。
 
-从 `FI-Agent/.env` 复制以下三个变量到 `jobhunting/.env`：
+## Why
+
+Job boards are firehoses. What you need is an agent that knows **your** stack,
+**your** location constraints, and **your** strongest projects — and only
+surfaces the openings worth your time, with materials ready to send.
+
+## Features
+
+- **4 sources, keyword-driven**: Remotive API, RemoteOK API, Web3.career,
+  CryptoJobsList (blockchain/Crypto focus; easy to add more in `sources/`)
+- **Title-first scoring** — long JDs can't keyword-stuff their way to the top;
+  generic talent-marketplace listings (Lemon.io, Toptal…) are penalized
+- **Location-aware**: +bonus when a posting covers your region (e.g. APAC),
+  −penalty when it's US/EU-timezone-locked or on-site in a city you can't work from
+- **Daily digest**: Feishu (Lark) rich card or Telegram Markdown
+- **Application kit** (`draft`): fit verdict (is it worth applying?),
+  a tailored English cover letter, resume-focus suggestions ranked against the JD,
+  and likely interview questions
+- **Follow-up tracking**: `applied` starts a timer; no reply after N days →
+  you get a nudge; `replied` stops it
+- **Ops-ready**: SQLite with auto-pruning, rotating logs, run history,
+  alert when all sources fail, unit tests
+
+Everything personal lives in `profile.yaml` + `.env` — both gitignored.
+
+## Quick start
 
 ```bash
-FEISHU_APP_ID=cli_xxxxxxxxxxxx
-FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-FEISHU_CHAT_ID=oc_xxxxxxxxxxxx
-```
+git clone <this-repo> && cd jobhunting
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-## 使用
+# 1) Interactive onboarding — builds your profile.yaml + config.yaml
+.venv/bin/python main.py init
 
-```bash
-# 抓取 + 评分（不入库重复）
-.venv/bin/python main.py run
+# 2) Configure a notification channel (optional but recommended)
+cp .env.example .env   # fill in Feishu OR Telegram credentials
 
-# 抓取 + 推送飞书
+# 3) First run
 .venv/bin/python main.py run --push
-
-# 查看最近职位
-.venv/bin/python main.py list -n 20
-
-# 标记已投递
-.venv/bin/python main.py applied remotive:12345
-
-# 查看配置
-.venv/bin/python main.py config
 ```
 
-## 定时任务（每日 09:00 自动推送）
+### Daily workflow
 
 ```bash
-# macOS crontab
-0 9 * * 1-5 cd /Users/albertma/sourcecode/workspace/python/jobhunting && /Users/albertma/sourcecode/workspace/python/jobhunting/.venv/bin/python main.py run --push >> /Users/albertma/sourcecode/workspace/python/jobhunting/logs/cron.log 2>&1
+# Morning digest arrives in your chat (cron/launchd — see below)
+
+# Pick a job ID from the digest, then:
+.venv/bin/python main.py draft remoteok:remote-xxx-123   # application kit in ~1s
+
+# Edit the cover letter to your voice, apply on the site, then:
+.venv/bin/python main.py applied remoteok:remote-xxx-123  # starts follow-up timer
+
+# When they reply:
+.venv/bin/python main.py replied remoteok:remote-xxx-123
 ```
 
-## 数据
+### Automate (weekdays 09:00)
 
-- 数据库：`data/jobs.db`（SQLite，自动创建）
-- 日志：`logs/`（首次运行后自动创建）
+```bash
+crontab -e
+0 9 * * 1-5 cd /path/to/jobhunting && .path/to/.venv/bin/python main.py run --push >> logs/cron.log 2>&1
+```
 
-## 配置
+## Commands
 
-编辑 `config.yaml`：
-- `sources.*.keywords` — 各来源搜索关键词
-- `scoring.core_keywords` — 核心匹配词（命中 +15 分）
-- `scoring.min_score` — 入围门槛（默认 40 分）
-- `notify.daily_max` — 飞书每天最多推送条数
+| Command | What it does |
+|---|---|
+| `init` | Interactive onboarding (profile + scoring config, region-aware) |
+| `run [--push]` | Fetch → filter → score → store; optionally notify |
+| `list -n 20` | Recent jobs |
+| `draft <job_id>` | Application kit: fit verdict + cover letter + resume tips + interview questions |
+| `applied <job_id>` | Mark applied (starts follow-up timer) |
+| `replied <job_id>` | Log a reply (stops follow-up reminders) |
+| `followups [--push]` | List/push stale applications |
+| `push -d 7` | Push top-scored jobs from the last N days |
+| `rescore` | Recompute all scores after tuning `config.yaml` |
+| `config` | Show effective config |
 
-## 文件结构
+## How scoring works
+
+| Signal | Weight |
+|---|---|
+| Core keyword hit in **title** | ×20, uncapped (strongest signal) |
+| Core keyword hits in description | ×10, capped at 3 (anti-stuffing) |
+| Secondary keyword hits | ×5, capped at 4 |
+| Salary transparency | +10 |
+| Talent marketplace (Lemon.io, Toptal…) | −30 |
+| Location covers your region (APAC/EU/US — auto from `init`) | +10 |
+| Location locked to another timezone / on-site city | −50 |
+| Empty title | 0 (never recommended) |
+
+Default threshold: 40. Tune everything in `config.yaml`, then `rescore`.
+
+## Project layout
 
 ```
-jobhunting/
-├── main.py                  # CLI 入口
-├── config.yaml              # 配置文件
-├── .env.example             # 飞书配置模板
-├── requirements.txt
-├── data/jobs.db             # SQLite（自动创建）
-├── logs/                    # 日志（自动创建）
+├── main.py                    # CLI entry
+├── config.yaml                # generated by `init` — sources, scoring, notify
+├── profile.example.yaml       # copy to profile.yaml (gitignored)
 ├── src/jobhunting/
-│   ├── models.py            # Job 数据模型
-│   ├── config.py            # 配置加载
-│   ├── db.py                # SQLite 持久化
-│   ├── filter.py            # 过滤 + 评分
-│   ├── pipeline.py          # 主 Pipeline
-│   ├── notify.py            # 飞书推送
-│   └── sources/
-│       ├── base.py           # 基类
-│       ├── remotive.py       # Remotive API
-│       ├── cryptjobslist.py  # CryptoJobsList
-│       └── web3career.py     # Web3.career
+│   ├── wizard.py              # interactive onboarding
+│   ├── pipeline.py            # fetch → score → store → notify
+│   ├── filter.py              # scoring engine (title-first, location-aware)
+│   ├── draft.py               # application-kit generator
+│   ├── notify.py              # Feishu + Telegram
+│   ├── db.py                  # SQLite, pruning, follow-up state
+│   └── sources/               # Remotive / RemoteOK / Web3Career / CryptoJobsList
+└── tests/test_filter.py       # scoring unit tests
 ```
+
+## Adding a source
+
+Subclass `JobSource`, implement `fetch()` + `normalize()`, register in
+`sources/__init__.py`. APIs preferred; respect robots.txt and rate limits —
+**please don't add LinkedIn/Indeed scrapers** (ToS violations, account bans).
+
+## Privacy
+
+- `profile.yaml`, `.env`, `data/`, `drafts/`, `logs/` are gitignored
+- No telemetry; the agent only talks to job boards and your notification channel
+- Cover letters are generated locally from your profile — nothing is sent anywhere automatically
+
+## Contributing
+
+PRs welcome — especially new sources (public APIs), notification channels
+(Slack, Discord, email), and scoring improvements. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Run tests before submitting: `.venv/bin/python tests/test_filter.py`
+
+## License
+
+[MIT](LICENSE)

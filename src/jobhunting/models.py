@@ -11,7 +11,7 @@ class Job:
     """标准化职位数据（所有来源统一格式）"""
 
     id: str                          # 来源:来源ID，确保全局唯一
-    source: Literal["remotive", "cryptjobslist", "web3career"]
+    source: Literal["remotive", "cryptjobslist", "web3career", "remoteok"]
     title: str                       # 岗位名称
     company: str                     # 公司名
     url: str                        # 原文链接
@@ -28,8 +28,9 @@ class Job:
     applied: bool = False           # 是否已投递
 
     def __post_init__(self):
-        # 强制唯一 ID 前缀
-        self.id = f"{self.source}:{self.id}"
+        # 强制唯一 ID 前缀（从数据库读回时已带前缀，不重复拼）
+        if not self.id.startswith(f"{self.source}:"):
+            self.id = f"{self.source}:{self.id}"
 
     @property
     def score_label(self) -> str:

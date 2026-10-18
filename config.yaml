@@ -46,7 +46,29 @@ sources:
       - "intern"
     max_results: 50
 
+  # RemoteOK：英文 Remote-only 聚合，官方免费 API
+  remoteok:
+    enabled: true
+    keywords:
+      - "ai"
+      - "llm"
+      - "agent"
+      - "blockchain"
+      - "crypto"
+      - "defi"
+      - "solidity"
+      - "web3"
+      - "golang"
+      - "rust"
+      - "backend"
+    exclude_keywords:
+      - "intern"
+      - "part time"
+    max_results: 60
+
 # ── 评分配置 ──────────────────────────────────────────────────────────
+# 标题优先：标题命中是最强信号；描述命中封顶防止长 JD 堆词刷分；
+# 人才库（Lemon.io 等"先进池子再匹配"的中介）降权
 scoring:
   core_keywords:
     - "ai agent"
@@ -82,9 +104,55 @@ scoring:
     - "ci/cd"
     - "devops"
 
-  core_weight: 15.0
-  secondary_weight: 5.0
-  salary_bonus: 10.0
+  title_weight: 20.0        # 标题核心词命中 ×20（不封顶）
+  core_weight: 10.0         # 描述核心词命中 ×10
+  desc_core_cap: 3          # 描述核心词最多计 3 次（封顶 30 分）
+  secondary_weight: 5.0     # 次要词命中 ×5
+  secondary_cap: 4          # 次要词最多计 4 次（封顶 20 分）
+  salary_bonus: 10.0        # 薪资透明 +10
+  talent_penalty: -30.0     # 人才库/中介惩罚
+  talent_companies:         # 惩罚名单（公司名包含即命中）
+    - "lemon.io"
+    - "toptal"
+    - "torc"
+    - "andela"
+    - "adeva"
+    - "arc.dev"
+    - "turing.com"
+    - "x-team"
+    - "gun.io"
+    - "braintrust"
+    - "talent500"
+    - "crossover"
+
+  # 地域适配（候选人所在地：上海/中国）
+  # 地点含 APAC/Worldwide 等可入职地区 +10；限定美/欧时区 -50（无法入职）；仅 Remote 中性
+  location_bonus: 10.0
+  location_penalty: -50.0
+  location_eligible:
+    - "worldwide"
+    - "global"
+    - "anywhere"
+    - "apac"
+    - "asia"
+    - "singapore"
+    - "china"
+    - "hong kong"
+    - "taiwan"
+    - "japan"
+    - "seoul"
+  location_restricted:
+    - "usa"
+    - "u.s."
+    - "united states"
+    - "northern america"
+    - "north america"
+    - "europe"
+    - "emea"
+    - "uk only"
+    - "latam only"
+    - "canada only"
+
   min_score: 40.0
   max_score: 100.0
 
@@ -95,4 +163,6 @@ notify:
 
 # ── 全局 ─────────────────────────────────────────────────────────────
 dedup_days: 7
+retention_days: 90        # 职位数据保留天数（超期自动清理，已投递的永久保留）
+followup_days: 7          # 投递后 N 天无回复则推送跟进提醒
 log_level: INFO

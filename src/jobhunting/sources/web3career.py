@@ -13,8 +13,13 @@ HTML 结构分析（2026-10-17）：
 from __future__ import annotations
 
 import re
+
 import httpx
+
 from .base import JobSource
+from ..log import setup_logging
+
+logger = setup_logging()
 
 
 class Web3CareerSource(JobSource):
@@ -56,7 +61,7 @@ class Web3CareerSource(JobSource):
                         if jid and jid not in all_jobs:
                             all_jobs[jid] = job
                 except Exception as e:
-                    print(f"[Web3Career] 「{kw}」第{page}页失败: {e}")
+                    logger.warning(f"[Web3Career] 「{kw}」第{page}页失败: {e}")
                     continue
 
         return list(all_jobs.values())

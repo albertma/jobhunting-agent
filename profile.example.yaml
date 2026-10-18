@@ -1,0 +1,55 @@
+# ═══════════════════════════════════════════════════════════════
+# Your professional profile — powers scoring & application drafting
+#
+# Copy this file to profile.yaml and fill it in:
+#   cp profile.example.yaml profile.yaml
+#
+# Or run the interactive wizard:
+#   python main.py init
+#
+# NOTE: profile.yaml is gitignored — your data never leaves your machine.
+# ═══════════════════════════════════════════════════════════════
+
+# ── Basics ────────────────────────────────────────────────────
+name: "Your Name"                      # Used as cover letter signature
+location: "Your City, Country"          # e.g. "Shanghai, China" / "Berlin, Germany"
+timezone_flexibility: >-
+  Based in Your City (UTC+X), flexible to overlap N hours
+  with your target team's timezone.
+
+years_experience: 5                     # Total years of experience
+headline: "Backend Engineer | Your Specialties"   # One-line positioning
+
+# ── Links (optional) ─────────────────────────────────────────
+links:
+  github: ""
+  linkedin: ""
+  portfolio: ""
+
+# ── Core skills (with evidence — be specific & quantified) ───
+# Format: - "Category: years/projects + concrete results"
+# These lines are auto-ranked against each JD and woven into
+# generated cover letters, so quality here directly determines
+# output quality.
+skills:
+  - "Skill A: X years doing Y, achieved Z (quantified)"
+  - "Skill B: built/project shipped, adopted by N users/clients"
+  - "Skill C: ..."
+
+# ── Highlight projects (2-4 strongest) ───────────────────────
+highlights:
+  - title: "Project Name"
+    what: "What you built — stack, architecture, scope"
+    impact: "Quantified outcome (performance / revenue / users)"
+  - title: "Project Name 2"
+    what: "..."
+    impact: "..."
+
+# ── Preferences (used for fit notes, not sent to employers) ──
+preferences:
+  expected_salary: ""                   # e.g. "$120k-150k/yr"; empty = TBD
+  work_mode: "Full-time remote preferred"
+  english_level: "Fluent working proficiency"
+
+# ── Cover letter style ────────────────────────────────────────
+tone: "confident, concise, no fluff"

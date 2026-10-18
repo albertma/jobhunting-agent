@@ -24,13 +24,47 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from jobhunting.config import load as load_config
-from jobhunting.db import get_applied, mark_applied, recent_jobs
+from jobhunting.db import (
+    all_jobs,
+    due_followups,
+    get_applied,
+    mark_applied,
+    mark_replied,
+    recent_jobs,
+    top_jobs,
+    update_scores,
+)
+from jobhunting.draft import generate_draft
+from jobhunting.filter import score_with_config
+from jobhunting import pipeline as pl
+from jobhunting.notify import notify_text
 from jobhunting.pipeline import push_to_feishu, run
 
 
 def cmd_run(push: bool) -> None:
     config = load_config()
     jobs = run(config)
+
+    # 全部数据源都失败时告警（无人值守时能及时发现异常）
+    status = pl.run_status
+    enabled = [n for n, s in config.sources.items() if s.enabled]
+    all_failed = enabled and all(not status.get(n, {}).get("ok") for n in enabled)
+    if all_failed:
+        nc = config.notify
+        errors = "\n".join(f"{n}: {status[n]['error'][:80]}" for n in enabled if n in status)
+        print(f"\n⚠️ 全部数据源抓取失败！\n{errors}")
+        if push and nc.enabled:
+            notify_text(
+                title="⚠️ JobHunting 全部数据源失败",
+                body=f"{datetime.now():%Y-%m-%d %H:%M}\n{errors}",
+                feishu_app_id=nc.feishu_app_id,
+                feishu_app_secret=nc.feishu_app_secret,
+                feishu_chat_id=nc.feishu_chat_id,
+                telegram_token=nc.telegram_bot_token,
+                telegram_chat_id=nc.telegram_chat_id,
+            )
+        return
+
     if not jobs:
         print("没有匹配职位")
         return
@@ -50,6 +84,8 @@ def cmd_run(push: bool) -> None:
 
     if push:
         push_to_feishu(jobs, config)
+        # 投递跟进提醒（独立推送）
+        push_followup_reminders(config)
 
 
 def cmd_list(limit: int = 20) -> None:
@@ -74,12 +110,68 @@ def cmd_config() -> None:
 
 def cmd_applied(job_id: str) -> None:
     mark_applied(job_id)
-    print(f"已标记: {job_id}")
+    print(f"已标记投递: {job_id}")
+    print("收到回复后用 replied 命令登记，跟进提醒会自动停止")
+
+
+def cmd_replied(job_id: str) -> None:
+    mark_replied(job_id)
+    print(f"已登记回复: {job_id}（不再提醒跟进）")
+
+
+def cmd_followups(push: bool) -> None:
+    config = load_config()
+    due = due_followups(days=config.followup_days)
+    if not due:
+        print(f"暂无待跟进的投递（超过 {config.followup_days} 天无回复的）")
+        return
+    print(f"待跟进投递（{len(due)} 个）：")
+    for j in due:
+        d = j["applied_at"][:10] if j["applied_at"] else "?"
+        print(f"  [{d} 投递] {j['title']} @ {j['company']}")
+        print(f"    {j['url']}")
+        print(f"    ID: {j['id']}")
+    if push:
+        from jobhunting.pipeline import push_followup_reminders
+        n = push_followup_reminders(config)
+        print(f"已推送飞书（{n} 条）" if n else "⚠️ 推送失败或未启用，下次运行重试")
+
+
+def cmd_rescore() -> None:
+    """用当前 config.yaml 重算全库评分（调参后使用）"""
+    config = load_config()
+    jobs = all_jobs()
+    if not jobs:
+        print("库为空")
+        return
+    scored = score_with_config(jobs, config.scoring)
+    n = update_scores(scored)
+    print(f"已重算 {n} 条。当前 Top 10：")
+    applied = get_applied()
+    for i, j in enumerate(scored[:10], 1):
+        tag = " ✅" if j.id in applied else ""
+        print(f"{i:2d}. [{j.score:5.0f}分] {j.title} @ {j.company}{tag}")
+
+
+def cmd_push(days: int) -> None:
+    """从库中取最近 N 天最高分职位推送飞书（不抓取）"""
+    config = load_config()
+    nc = config.notify
+    jobs = top_jobs(days=days, limit=nc.daily_max)
+    if not jobs:
+        print("最近没有可推送的职位")
+        return
+    print(f"将推送 {len(jobs)} 条：")
+    for j in jobs:
+        print(f"  [{j.score:5.0f}分] {j.title} @ {j.company}")
+    push_to_feishu(jobs, config)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Remote Job Hunting CLI")
     sub = parser.add_subparsers(dest="cmd")
+
+    sub.add_parser("init", help="交互式初始化（生成 profile.yaml + config.yaml）")
 
     r = sub.add_parser("run", help="抓取职位")
     r.add_argument("--push", action="store_true", help="推送飞书")
@@ -89,19 +181,48 @@ def main() -> None:
         "-n", "--limit", type=int, default=20
     )
 
-    applied_p = sub.add_parser("applied", help="标记已投递")
+    applied_p = sub.add_parser("applied", help="标记已投递（开始计时，N 天无回复提醒跟进）")
     applied_p.add_argument("job_id", help="Job ID（如 remotive:12345）")
+
+    replied_p = sub.add_parser("replied", help="登记已收到回复（停止跟进提醒）")
+    replied_p.add_argument("job_id", help="Job ID")
+
+    followups_p = sub.add_parser("followups", help="查看/推送待跟进的投递")
+    followups_p.add_argument("--push", action="store_true", help="推送到飞书")
+
+    sub.add_parser("rescore", help="重算全库评分（调参后使用）")
+
+    push_p = sub.add_parser("push", help="推送库内最高分职位到飞书（不抓取）")
+    push_p.add_argument("-d", "--days", type=int, default=7, help="取最近 N 天")
+
+    draft_p = sub.add_parser("draft", help="生成定制申请包（cover letter + 简历建议 + 面试题）")
+    draft_p.add_argument("job_id", help="Job ID（main.py list 查看，如 remoteok:xxx）")
 
     sub.add_parser("config", help="打印配置")
 
     args = parser.parse_args()
 
-    if args.cmd == "run":
+    if args.cmd == "init":
+        from jobhunting.wizard import run_wizard
+        run_wizard()
+    elif args.cmd == "run":
         cmd_run(push=args.push)
     elif args.cmd == "list":
         cmd_list(limit=args.limit)
     elif args.cmd == "applied":
         cmd_applied(args.job_id)
+    elif args.cmd == "replied":
+        cmd_replied(args.job_id)
+    elif args.cmd == "followups":
+        cmd_followups(push=args.push)
+    elif args.cmd == "rescore":
+        cmd_rescore()
+    elif args.cmd == "push":
+        cmd_push(days=args.days)
+    elif args.cmd == "draft":
+        out = generate_draft(args.job_id)
+        print(f"\n✅ 申请包已生成: {out}")
+        print("   先填 profile.yaml 再生成，效果更好")
     elif args.cmd == "config":
         cmd_config()
     else:

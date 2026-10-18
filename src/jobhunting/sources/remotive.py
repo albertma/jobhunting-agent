@@ -4,11 +4,19 @@ API Docs: https://remotive.com/api/remote-jobs
 - 无需认证，每分钟最多 2 次（免费层）
 - 支持关键词搜索、分类筛选
 - 每次最多返回 100 条（可分页）
+
+注意：API 字段为 `title`（旧版文档写 `job_title`，已失效）
 """
 from __future__ import annotations
 
+import re
+
 import httpx
+
 from .base import JobSource
+from ..log import setup_logging
+
+logger = setup_logging()
 
 REMOTIVE_API = "https://remotive.com/api/remote-jobs"
 
@@ -50,21 +58,29 @@ class RemotiveSource(JobSource):
                             all_jobs[job_id] = job
                 except Exception as e:
                     # 单次失败不阻塞，继续下一个
-                    print(f"[Remotive] 关键词「{kw}」第{page+1}页失败: {e}")
+                    logger.warning(f"[Remotive] 关键词「{kw}」第{page+1}页失败: {e}")
                     continue
 
         return list(all_jobs.values())
 
     def normalize(self, raw: dict[str, Any]) -> dict[str, Any]:
+        # 描述是 HTML，去掉标签便于评分与展示
+        desc = _strip_html(raw.get("description", ""))
         return {
             "id": str(raw.get("id", "")),
-            "title": raw.get("job_title", ""),
+            "title": raw.get("title") or raw.get("job_title", ""),
             "company": raw.get("company_name", ""),
             "url": raw.get("url", ""),
-            "description": raw.get("description", ""),
+            "description": desc,
             "tags": raw.get("tags", []),
             "location": raw.get("candidate_required_location", "Remote"),
             "salary": raw.get("salary", ""),
             "job_type": raw.get("job_type", ""),
             "posted_at": raw.get("publication_date", ""),
         }
+
+
+def _strip_html(html: str) -> str:
+    """粗略去 HTML 标签 + 压缩空白"""
+    text = re.sub(r"<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", text).strip()

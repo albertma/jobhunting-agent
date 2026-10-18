@@ -11,8 +11,13 @@ URL 结构:
 from __future__ import annotations
 
 import re
+
 import cloudscraper
+
 from .base import JobSource
+from ..log import setup_logging
+
+logger = setup_logging()
 
 
 class CryptoJobsListSource(JobSource):
@@ -42,7 +47,7 @@ class CryptoJobsListSource(JobSource):
                     if jid and jid not in all_jobs:
                         all_jobs[jid] = job
             except Exception as e:
-                print(f"[CryptoJobsList] 分类「{cat}」失败: {e}")
+                logger.warning(f"[CryptoJobsList] 分类「{cat}」失败: {e}")
                 continue
 
         # 也从首页抓取 featured jobs
@@ -53,7 +58,7 @@ class CryptoJobsListSource(JobSource):
                 if jid and jid not in all_jobs:
                     all_jobs[jid] = job
         except Exception as e:
-            print(f"[CryptoJobsList] 首页失败: {e}")
+            logger.warning(f"[CryptoJobsList] 首页失败: {e}")
 
         return list(all_jobs.values())
 

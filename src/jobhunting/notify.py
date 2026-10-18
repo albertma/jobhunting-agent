@@ -1,17 +1,21 @@
-"""飞书通知服务（复用 FI-Agent 风格）"""
+"""通知服务：飞书 + Telegram 双通道"""
 from __future__ import annotations
 
 import json
-import time
 from typing import Any
 
 import httpx
+
+from .log import setup_logging
+
+logger = setup_logging()
 
 FEISHU_API_BASE = "https://open.feishu.cn/open-apis"
 _TOKEN_URL = f"{FEISHU_API_BASE}/auth/v3/tenant_access_token/internal"
 _SEND_URL = f"{FEISHU_API_BASE}/im/v1/messages"
 
-_TOKEN_EXPIRY_SKEW = 300
+TELEGRAM_API = "https://api.telegram.org"
+
 _HTTP_TIMEOUT = 10.0
 
 
@@ -28,7 +32,7 @@ def _get_token(app_id: str, app_secret: str) -> str | None:
         if data.get("code") == 0:
             return data["tenant_access_token"]
     except Exception as e:
-        print(f"[Feishu] 获取 token 失败: {e}")
+        logger.warning(f"[Feishu] 获取 token 失败: {e}")
     return None
 
 
@@ -57,8 +61,55 @@ def _send_message(
         data = resp.json()
         return data.get("code") == 0
     except Exception as e:
-        print(f"[Feishu] 发送消息失败: {e}")
+        logger.warning(f"[Feishu] 发送消息失败: {e}")
         return False
+
+
+def telegram_send_text(
+    title: str,
+    body: str,
+    bot_token: str,
+    chat_id: str,
+) -> bool:
+    """发送 Telegram 消息（Markdown 格式），失败不抛异常"""
+    if not (bot_token and chat_id):
+        return False
+    try:
+        resp = httpx.post(
+            f"{TELEGRAM_API}/bot{bot_token}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": f"*{title}*\n\n{body}",
+                "parse_mode": "Markdown",
+            },
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp.json().get("ok", False)
+    except Exception as e:
+        logger.warning(f"[Telegram] 发送失败: {e}")
+        return False
+
+
+def notify_text(
+    title: str,
+    body: str,
+    *,
+    feishu_app_id: str = "",
+    feishu_app_secret: str = "",
+    feishu_chat_id: str = "",
+    telegram_token: str = "",
+    telegram_chat_id: str = "",
+) -> bool:
+    """向所有已配置的通道发送纯文本；任一成功即 True"""
+    sent = False
+    if feishu_app_id and feishu_app_secret and feishu_chat_id:
+        sent |= feishu_notify_text(title, body, feishu_app_id, feishu_app_secret, feishu_chat_id)
+    if telegram_token and telegram_chat_id:
+        sent |= telegram_send_text(title, body, telegram_token, telegram_chat_id)
+    if not sent:
+        logger.info("[Notify] 无可用通道或全部失败")
+    return sent
 
 
 def feishu_notify(
@@ -70,7 +121,7 @@ def feishu_notify(
 ) -> bool:
     """发送职位汇总飞书消息，失败不抛异常"""
     if not (app_id and app_secret and chat_id):
-        print("[Feishu] 配置不完整，跳过推送")
+        logger.info("[Feishu] 配置不完整，跳过推送")
         return False
 
     token = _get_token(app_id, app_secret)
@@ -123,9 +174,9 @@ def feishu_notify(
 
     ok = _send_message(token, chat_id, content)
     if ok:
-        print(f"[Feishu] 推送成功：{len(jobs)} 个职位")
+        logger.info(f"[Feishu] 推送成功：{len(jobs)} 个职位")
     else:
-        print("[Feishu] 推送失败")
+        logger.warning("[Feishu] 推送失败")
     return ok
 
 
