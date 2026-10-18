@@ -12,8 +12,11 @@
 """
 from __future__ import annotations
 
+import os
 import sys
 import textwrap
+import webbrowser
+from pathlib import Path
 from typing import Optional
 
 from .config import load as load_config
@@ -118,9 +121,7 @@ def _session(job, profile: dict, llm_ok: bool, resume_txt: str = "") -> None:
             return  # 外层会重新显示职位列表
 
         if cmd == "apply":
-            mark_applied(job.id)
-            print(f"✅ 已标记投递: {job.title} @ {job.company}")
-            print("收到回复后运行: main.py replied <job_id>")
+            _cmd_apply(job, profile, llm_ok, resume_txt)
             continue
 
         if cmd == "fit":
@@ -226,6 +227,88 @@ def _build_cover_prompt(job, profile) -> str:
         "- Address timezone proactively\n"
         "- End with a specific call to action"
     )
+
+
+def _cmd_apply(job, profile: dict, llm_ok: bool, resume_txt: str = "") -> None:
+    """完整投递工作流：打开链接 → 预生成材料 → 确认记录"""
+    name = profile.get("name", "")
+    headline = profile.get("headline", "")
+    years = profile.get("years_experience", 0)
+    tz = profile.get("timezone_flexibility", "")
+    skills = "\n".join(f"- {s}" for s in profile.get("skills", []))
+    highlights = profile.get("highlights") or []
+    hl = ""
+    if highlights:
+        h = highlights[0]
+        hl = f"\nMost relevant project: {h.get('title')}\n  {h.get('what', '')}\n  Impact: {h.get('impact', '')}"
+
+    print(f"\n{'='*60}")
+    print(f"📋 投递: {job.title} @ {job.company}")
+    if job.salary:
+        print(f"   💰 {job.salary}")
+    print(f"   🔗 {job.url}")
+    print(f"{'='*60}")
+
+    # Step 1: 打开申请页面
+    print("\n🚀 正在打开申请页面...")
+    webbrowser.open(job.url)
+    print(f"   已在新窗口打开: {job.url}")
+
+    # Step 2: 生成 Cover Letter
+    letter = ""
+    if llm_ok:
+        print("\n✍️  正在生成定制 Cover Letter ...", end="", flush=True)
+        prompt = (
+            f"Write a cover letter for the following position. Be specific, no generic phrases.\n\n"
+            f"Position: {job.title}\nCompany: {job.company}\n"
+            f"Location: {job.location or 'Remote'}\nSalary: {job.salary or 'Not specified'}\n\n"
+            f"Description (key parts):\n{job.description[:2000] if job.description else 'See posting'}\n\n"
+            f"Candidate:\nName: {name}\nHeadline: {headline}\n"
+            f"Experience: {years} years\nTimezone: {tz}\nSkills:\n{skills}{hl}\n\n"
+            "Requirements:\n"
+            "- 250-350 words\n"
+            "- No template phrases, no buzzword lists\n"
+            "- Lead with the strongest match\n"
+            "- Address timezone proactively\n"
+            "- End with a specific call to action"
+        )
+        try:
+            letter = cover_letter(prompt)
+            print(f"\n\n📄 定制 Cover Letter:\n{'─'*60}")
+            print(letter)
+            print(f"{'─'*60}")
+        except Exception as e:
+            print(f"\n❌ Cover Letter 生成失败: {e}")
+    else:
+        print("\n⚠️  LLM 未启用，跳过 Cover Letter 生成")
+        print("   请自行准备 Cover Letter，或启用 LLM（见 config.yaml）")
+
+    # Step 3: 保存材料到 drafts/ 目录
+    drafts_dir = Path(__file__).parent.parent.parent / "drafts"
+    drafts_dir.mkdir(exist_ok=True)
+    safe_id = job.id.replace(":", "_")
+    letter_path = drafts_dir / f"{safe_id}_cover_letter.txt"
+    letter_path.write_text(letter if llm_ok else "# 未生成（LLM 未启用）")
+    print(f"\n📁 Cover Letter 已保存: {letter_path.name}")
+
+    # Step 4: 确认是否标记已投递
+    print(f"\n{'='*60}")
+    print("✅ 申请页面已打开，材料已生成")
+    while True:
+        try:
+            confirm = input("投递完成后，输入 y 标记为已投递 > ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\n未标记，可稍后手动运行: main.py applied <job_id>")
+            return
+        if confirm == "y":
+            mark_applied(job.id)
+            print(f"✅ 已标记投递: {job.title} @ {job.company}")
+            print("收到回复后运行: main.py replied <job_id>")
+            return
+        elif confirm in ("n", "q", ""):
+            print("未标记，稍后可手动运行: main.py applied <job_id>")
+            return
+        print("请输入 y（确认）或 n（取消）")
 
 
 def run_repl() -> None:
