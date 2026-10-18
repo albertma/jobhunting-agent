@@ -10,6 +10,8 @@ fetch → filter → score (title-first, location-aware) → notify → draft �
 
 📐 **[交互式架构图](docs/architecture.html)** — 组件、数据流、隐私边界，支持明/暗主题与章节导览。
 
+![JobHunting Agent 架构](docs/architecture.visual-check.2048x1320.light.png)
+
 > 🇨🇳 中文简介见下方。个人求职 Agent：自动抓取远程职位、按你的画像评分、
 > 每日推送到飞书/Telegram、一键生成定制申请包、投递超时自动提醒跟进。
 
