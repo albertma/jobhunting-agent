@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "JobHunting Agent 系统架构",
+    "output": "docs/architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/albertma/jobhunting-agent",
+      "revision": "9ad4b60999e5ec86d3d97bca5ee55c868a254338"
+    },
+    "views": [
+      {
+        "id": "daily-pipeline",
+        "label": "每日主链路",
+        "focus": ["user", "pipeline", "sources", "filter", "db", "notify", "feishu", "telegram"],
+        "note": "cron 09:00 触发：抓取 4 个职位源 → 标题优先评分 → 入库 → 推送每日精选。"
+      },
+      {
+        "id": "personalization",
+        "label": "个性化定制",
+        "focus": ["wizard", "profile", "filter", "draft"],
+        "note": "init 向导按所在地生成地域适配规则，画像驱动评分与申请材料生成。"
+      },
+      {
+        "id": "apply-followup",
+        "label": "申请与跟进",
+        "focus": ["draft", "db", "notify", "feishu", "telegram"],
+        "note": "draft 生成申请包；applied 计时，7 天无回复自动提醒跟进。"
+      }
+    ]
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "求职者", "sublabel": "CLI / cron 09:00", "pos": [40, 330], "size": [130, 64] },
+    { "id": "wizard", "type": "backend", "label": "init 向导", "sublabel": "wizard.py", "pos": [40, 120], "size": [140, 64], "tag": "5 步初始化", "sources": [{ "path": "src/jobhunting/wizard.py", "label": "run_wizard" }] },
+    { "id": "profile", "type": "backend", "label": "个人画像与配置", "sublabel": "profile.yaml · config.yaml", "pos": [260, 120], "size": [160, 64], "sources": [{ "path": "profile.example.yaml", "label": "画像模板" }] },
+    { "id": "pipeline", "type": "backend", "label": "抓取编排", "sublabel": "pipeline.py", "pos": [260, 330], "size": [140, 64], "sources": [{ "path": "src/jobhunting/pipeline.py", "label": "run()" }] },
+    { "id": "sources", "type": "external", "label": "职位源 ×4", "sublabel": "Remotive · RemoteOK · Web3.career · CryptoJobsList", "pos": [260, 480], "size": [210, 64] },
+    { "id": "filter", "type": "backend", "label": "评分引擎", "sublabel": "filter.py", "pos": [490, 330], "size": [140, 64], "tag": "标题优先 · 地域适配", "sources": [{ "path": "src/jobhunting/filter.py", "label": "score_with_config" }] },
+    { "id": "db", "type": "database", "label": "SQLite", "sublabel": "jobs.db · 去重 · 投递状态", "pos": [700, 330], "size": [150, 64], "sources": [{ "path": "src/jobhunting/db.py", "label": "持久化" }] },
+    { "id": "draft", "type": "backend", "label": "申请包生成", "sublabel": "draft.py", "pos": [700, 120], "size": [150, 64], "tag": "cover letter · 简历建议 · 面试题", "sources": [{ "path": "src/jobhunting/draft.py", "label": "generate_draft" }] },
+    { "id": "notify", "type": "backend", "label": "通知分发", "sublabel": "notify.py", "pos": [910, 330], "size": [140, 64], "sources": [{ "path": "src/jobhunting/notify.py", "label": "notify_text" }] },
+    { "id": "feishu", "type": "external", "label": "飞书群", "sublabel": "富文本卡片", "pos": [1120, 240], "size": [130, 64] },
+    { "id": "telegram", "type": "external", "label": "Telegram", "sublabel": "Markdown", "pos": [1120, 420], "size": [130, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "本地 Agent（隐私边界：数据不出本机）", "wraps": ["wizard", "profile", "pipeline", "filter", "db", "draft", "notify"] }
+  ],
+  "connections": [
+    { "id": "user-init", "from": "user", "to": "wizard", "label": "main.py init", "variant": "dashed", "fromSide": "top", "toSide": "bottom" },
+    { "id": "wizard-profile", "from": "wizard", "to": "profile", "label": "生成" },
+    { "id": "user-run", "from": "user", "to": "pipeline", "label": "run --push", "variant": "emphasis" },
+    { "id": "pipeline-sources", "from": "pipeline", "to": "sources", "label": "HTTP 抓取", "fromSide": "bottom", "toSide": "top" },
+    { "id": "pipeline-filter", "from": "pipeline", "to": "filter", "label": "过滤 · 评分" },
+    { "id": "profile-filter", "from": "profile", "to": "filter", "label": "评分规则", "fromSide": "bottom", "toSide": "top" },
+    { "id": "filter-db", "from": "filter", "to": "db", "label": "入库" },
+    { "id": "profile-draft", "from": "profile", "to": "draft", "label": "技能画像" },
+    { "id": "db-draft", "from": "db", "to": "draft", "label": "JD + 状态", "fromSide": "top", "toSide": "bottom" },
+    { "id": "db-notify", "from": "db", "to": "notify", "label": "每日精选 · 跟进提醒", "labelDy": 56 },
+    { "id": "notify-feishu", "from": "notify", "to": "feishu", "label": "卡片" },
+    { "id": "notify-telegram", "from": "notify", "to": "telegram", "label": "Markdown" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "抓取与评分", "items": ["4 个职位源关键词抓取（公开 API，遵守限频）", "标题优先评分：描述命中封顶，防长 JD 堆词", "地域适配：覆盖本地区 +10，他区时区锁定 −50"] },
+    { "dot": "emerald", "title": "通知与跟进", "items": ["飞书富文本 / Telegram Markdown 双通道", "投递超过 followup_days 无回复自动提醒", "全部数据源失败时推送告警"] },
+    { "dot": "rose", "title": "隐私边界", "items": ["画像 / 数据库 / 申请包全部本地，gitignore 保护", "不自动向外发送任何申请，投递由人完成", "仅与职位源和你的通知通道通信"] }
+  ]
+}
