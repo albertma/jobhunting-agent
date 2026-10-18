@@ -38,6 +38,9 @@ surfaces the openings worth your time, with materials ready to send.
   - `chat <job_id>` — interactive Q&A mode (type questions, get answers)
 - **Template-free drafting** (`draft`): fit verdict, keyword-ranked resume tips,
   and likely interview questions — works offline, no LLM needed
+- **Resume PDF reader**: agent loads your English resume on startup;
+  use `/resume` to view the summary, and the LLM reads it automatically
+  when analyzing jobs so it can reference your real accomplishments
 - **Follow-up tracking**: `applied` starts a timer; no reply after N days →
   you get a nudge; `replied` stops it
 - **Ops-ready**: SQLite with auto-pruning, rotating logs, run history,
@@ -115,6 +118,7 @@ crontab -e
 | `chat --draft <job_id>` | LLM 生成定制 Cover Letter（完全自然语言版） |
 | `chat <job_id> "question"` | LLM 对话：直接问职位相关问题 |
 | `chat <job_id>` | LLM 交互式 Q&A（逐条提问） |
+| `agent` | 交互式 REPL：选职位 → /fit /draft /resume /apply → 自然语言对话 |
 | `draft <job_id>` | Application kit (无 LLM 模式): fit verdict + resume tips + interview questions |
 | `applied <job_id>` | Mark applied (starts follow-up timer) |
 | `replied <job_id>` | Log a reply (stops follow-up reminders) |

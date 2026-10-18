@@ -21,6 +21,7 @@ from .db import get_job, mark_applied, recent_jobs
 from .draft import load_profile
 from .log import setup_logging
 from .llm import chat_about_job, cover_letter, is_llm_enabled, job_fit_analysis
+from .resume import resume_summary
 
 logger = setup_logging()
 
@@ -49,13 +50,17 @@ def _is_llm_available() -> bool:
         return False
 
 
-def _build_system_prompt(profile: dict) -> str:
+def _build_system_prompt(profile: dict, resume_txt: str = "") -> str:
     skills = "\n".join(f"- {s}" for s in profile.get("skills", [])[:5])
     highlights = profile.get("highlights") or []
     hl = ""
     if highlights:
         h = highlights[0]
         hl = f"\n最相关项目: {h.get('title')}\n  {h.get('what', '')[:120]}\n  成果: {h.get('impact', '')[:80]}"
+    if resume_txt:
+        resume_block = f"\n简历摘要 (前 600 字):\n{resume_txt}\n"
+    else:
+        resume_block = ""
     return (
         "你是一位专业的求职顾问。用户在看一个职位，请用中文回答，"
         "分析直接诚实，帮助用户做出明智决策。"
@@ -63,11 +68,11 @@ def _build_system_prompt(profile: dict) -> str:
         f"用户背景: {profile.get('headline', '')}，"
         f"{profile.get('years_experience', 0)} 年经验，"
         f"时区: {profile.get('timezone_flexibility', '')[:50]}\n"
-        f"核心技能:\n{skills}{hl}"
+        f"核心技能:\n{skills}{hl}{resume_block}"
     )
 
 
-def _session(job, profile: dict, llm_ok: bool) -> None:
+def _session(job, profile: dict, llm_ok: bool, resume_txt: str = "") -> None:
     """单职位对话循环"""
     print(f"\n{'='*60}")
     print(f"📋 {job.title} @ {job.company}")
@@ -76,10 +81,10 @@ def _session(job, profile: dict, llm_ok: bool) -> None:
     print(f"   🌍 {job.location or 'Remote'}")
     print(f"   🔗 {job.url}")
     print(f"{'='*60}")
-    print("\n内置命令: /fit (匹配分析)  /draft (Cover Letter)  /apply (标记投递)  /jobs (重新选职位)  /quit\n")
+    print("\n内置命令: /fit (匹配分析)  /draft (Cover Letter)  /apply (标记投递)  /resume (查看简历摘要)  /jobs (重新选职位)  /quit\n")
 
     # 记住对话历史（每轮附带系统上下文）
-    system = _build_system_prompt(profile)
+    system = _build_system_prompt(profile, resume_txt)
     history: list[dict] = []
 
     while True:
@@ -98,6 +103,15 @@ def _session(job, profile: dict, llm_ok: bool) -> None:
         if cmd == "quit" or cmd == "q":
             print("已退出对话")
             return
+
+        if cmd == "resume":
+            if resume_txt:
+                print("\n📄 简历摘要:")
+                for line in textwrap.wrap(resume_txt, width=70):
+                    print(f"   {line}")
+            else:
+                print("\n⚠️  未加载简历 PDF")
+            continue
 
         if cmd == "jobs":
             print("\n切换职位...")
@@ -237,6 +251,14 @@ def run_repl() -> None:
         profile = {}
         print("  ⚠️ 未找到 profile.yaml，部分功能受限")
 
+    # 加载简历 PDF（英文版）
+    resume_txt = ""
+    try:
+        resume_txt = resume_summary(lang="en")
+        print(f"  简历: ✅ 已加载 (英文, {len(resume_txt)} 字符)")
+    except FileNotFoundError:
+        print("  简历: ⚠️  未找到简历 PDF（/resume 功能不可用）")
+
     # 显示最近匹配职位
     print(f"\n{'─'*60}")
     print("最近入库的匹配职位（输入编号选择，进入对话）：")
@@ -287,7 +309,7 @@ def run_repl() -> None:
             continue
 
         # 进入对话
-        _session(job, profile, llm_ok)
+        _session(job, profile, llm_ok, resume_txt)
 
 
 def cmd_agent() -> None:
