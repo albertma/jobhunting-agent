@@ -333,8 +333,10 @@ def cover_letter(prompt: str) -> str:
 
 
 def chat_about_job(job_id: str, question: str, job_title: str,
-                    job_description: str, profile: str) -> str:
+                    job_description: str, profile: str,
+                    resume_text: str = "") -> str:
     """对话模式：用户用自然语言询问关于某个职位的问题"""
+    resume_block = f"\n\n## 候选人简历摘要\n{resume_text}" if resume_text else ""
     prompt = f"""你是求职顾问。用户在看一个职位，有问题想问你。
 
 ## 职位
@@ -342,7 +344,7 @@ def chat_about_job(job_id: str, question: str, job_title: str,
 描述（摘录）: {job_description[:2000]}
 
 ## 用户背景
-{profile}
+{profile}{resume_block}
 
 ## 用户的问题
 {question}

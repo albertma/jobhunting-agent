@@ -181,7 +181,8 @@ def _session(job, profile: dict, llm_ok: bool, resume_txt: str = "") -> None:
                 history.append({"role": "user", "content": user_input})
                 full_history = [{"role": "system", "content": system}] + history
                 resp = chat_about_job(
-                    job.id, user_input, job.title, job.description or "", ""
+                    job.id, user_input, job.title, job.description or "",
+                    "", resume_txt
                 )
                 history.append({"role": "assistant", "content": resp})
                 print(f"\n🤖 Agent:\n{textwrap.indent(resp, _INDENT)}\n")
