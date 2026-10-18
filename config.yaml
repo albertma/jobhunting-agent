@@ -166,7 +166,7 @@ notify:
 # api_key / base_url / model 均可被同名环境变量覆盖
 # MiniMax 默认使用 FI-Agent 的 MiniMax 端点
 llm:
-  enabled: false       # 设为 true 启用 LLM（需配置 API Key，见下方）
+  enabled: false       # 设为 true 启用 LLM；或保持 false，只要有 .env LLM_API_KEY 会自动激活
   # provider: anthropic
   # api_key: sk-xxx          # MiniMax/DeepSeek API Key
   # base_url: https://api.minimaxi.com/anthropic

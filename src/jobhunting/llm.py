@@ -37,48 +37,67 @@ _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── 配置加载 ─────────────────────────────────────────────────────────
 
+def _env_path() -> Path:
+    p = _PROJECT_ROOT / ".env"
+    if p.exists():
+        return p
+    # 复用 FI-Agent 的 .env（如果存在）
+    fi_env = Path.home() / "sourcecode" / "workspace" / "python" / "FI-Agent" / ".env"
+    if fi_env.exists():
+        return fi_env
+    return p
+
+
+
 def _load_llm_config() -> dict[str, Any]:
+    """从 config.yaml + .env 加载 LLM 配置，优先级: .env > config.yaml > 默认"""
+    # config.yaml
     try:
         with open(_CONFIG_PATH, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-        # yaml 解析注释-only section 会得到 None
-        llm_cfg = data.get("llm") or {}
-        return llm_cfg if isinstance(llm_cfg, dict) else {}
+        cfg = data.get("llm") or {}
+        if not isinstance(cfg, dict):
+            cfg = {}
     except Exception:
-        return {}
+        cfg = {}
+
+    # .env（优先级更高，覆盖 config.yaml）
+    env_vars: dict[str, str] = {}
+    try:
+        with open(_env_path(), encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                env_vars[k.strip()] = v.strip()
+    except Exception:
+        pass
+
+    # 合并：env 覆盖 config.yaml
+    def _e(key: str, fallback: str = "") -> str:
+        return env_vars.get(key, cfg.get(key, fallback))
+
+    return {
+        "enabled": cfg.get("enabled", False) or bool(env_vars.get("LLM_API_KEY")),
+        "provider": _e("LLM_PROVIDER", "anthropic"),
+        "api_key": _e("LLM_API_KEY", "FIXME_set_api_key"),
+        "base_url": _e("LLM_BASE_URL", "https://api.minimaxi.com/anthropic"),
+        "model": _e("LLM_MODEL", "MiniMax-M2.7-highspeed"),
+    }
 
 
 def _resolve_provider(cfg: dict) -> dict[str, str]:
     """解析 provider + api_key + base_url + model
 
-    优先级: config.yaml > FI-Agent 环境变量 > 环境变量 > 默认
-    FI-Agent 环境变量: AI_INVESTMENT_LLM_*
+    配置优先级: .env > config.yaml > 默认 MiniMax
     """
-    import os
-
-    def env(key: str, fallback: str = "") -> str:
-        return os.environ.get(key, fallback)
-
-    # api_key: 优先 config.yaml > FI-Agent > 环境变量 > 默认占位符
-    api_key = (
-        cfg.get("api_key")
-        or env("LLM_API_KEY")
-        or env("AI_INVESTMENT_LLM_API_KEY")
-        or env("OPENAI_API_KEY")
-        or "FIXME_set_api_key"
-    )
-    base_url = (
-        cfg.get("base_url")
-        or env("LLM_BASE_URL")
-        or env("AI_INVESTMENT_LLM_BASE_URL", "https://api.minimaxi.com/anthropic")
-    )
-    model = (
-        cfg.get("model")
-        or env("LLM_MODEL")
-        or env("AI_INVESTMENT_LLM_MODEL", "MiniMax-M2.7-highspeed")
-    )
-    provider = cfg.get("provider", "") or env("LLM_PROVIDER", "anthropic")
-    return {"provider": provider, "api_key": api_key, "base_url": base_url, "model": model}
+    return {
+        "provider": cfg.get("provider", "anthropic"),
+        "api_key": cfg.get("api_key", "FIXME_set_api_key"),
+        "base_url": cfg.get("base_url", "https://api.minimaxi.com/anthropic"),
+        "model": cfg.get("model", "MiniMax-M2.7-highspeed"),
+    }
 
 
 # ── LLM 客户端（懒加载）─────────────────────────────────────────────
@@ -87,15 +106,9 @@ _client: Any = None
 
 
 def is_llm_enabled() -> bool:
-    """检查 LLM 是否可用（config.yaml enabled=true 或环境变量已设置）"""
-    import os
+    """检查 LLM 是否可用（config.yaml / .env 已配置 LLM_API_KEY）"""
     cfg = _load_llm_config()
-    if cfg.get("enabled", False):
-        return True
-    # 环境变量直接设置了 LLM 凭据，视为启用
-    if os.environ.get("LLM_API_KEY") or os.environ.get("AI_INVESTMENT_LLM_API_KEY"):
-        return True
-    return False
+    return bool(cfg.get("enabled", False) or cfg.get("api_key", "") not in ("", "FIXME_set_api_key"))
 
 
 def _build_client() -> Any:

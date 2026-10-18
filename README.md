@@ -47,21 +47,24 @@ Everything personal lives in `profile.yaml` + `.env` — both gitignored.
 
 ### LLM agent (optional)
 
-Set `llm.enabled: true` in `config.yaml`, then configure API credentials via
-environment variables or in `config.yaml`:
+Configure LLM credentials in `.env` (they are read automatically on startup).
+`.env.example` shows all options:
 
-```yaml
-llm:
-  enabled: true
-  # provider: anthropic          # MiniMax / DeepSeek 等兼容 Anthropic 协议
-  # api_key: sk-your-key
-  # base_url: https://api.minimaxi.com/anthropic
-  # model: MiniMax-M2.7-highspeed
+```bash
+# MiniMax (recommended, no VPN needed)
+LLM_API_KEY=sk-cp-xxxxxxxxxxxx
+LLM_BASE_URL=https://api.minimaxi.com/anthropic
+LLM_MODEL=MiniMax-M2.7-highspeed
+
+# DeepSeek (needs VPN or CN mirror)
+# LLM_API_KEY=sk-xxxx
+# LLM_BASE_URL=https://api.deepseek.com/v1
+# LLM_MODEL=deepseek-chat
 ```
 
-Or export the corresponding env vars (`AI_INVESTMENT_LLM_API_KEY` etc. —
-compatible with FI-Agent credentials). Run `python main.py chat --fit <job_id>`
-to verify.
+Then set `llm.enabled: true` in `config.yaml` (or leave it `false` —
+the agent detects a valid `LLM_API_KEY` in `.env` and activates automatically).
+Run `python main.py chat --fit <job_id>` to verify the connection.
 
 ## Quick start
 
