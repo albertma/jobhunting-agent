@@ -99,8 +99,20 @@ def cmd_list(limit: int = 20) -> None:
         print(f"\n已投递: {len(applied)} 个")
 
 
-def cmd_config() -> None:
+def cmd_config(args_str: str | None) -> None:
     config = load_config()
+    if args_str == "feishu":
+        # 测试飞书连接
+        from jobhunting.notify import notify_text
+        result = notify_text(
+            title="🔔 jobhunting 测试消息",
+            body="Pi 扩展测试：飞书连接正常 ✅",
+            feishu_app_id=config.notify.feishu_app_id or "",
+            feishu_app_secret=config.notify.feishu_app_secret or "",
+            feishu_chat_id=config.notify.feishu_chat_id or "",
+        )
+        print("飞书发送成功 ✅" if result else "飞书发送失败 ❌")
+        return
     print("=== 当前配置 ===")
     print(f"来源: {[n for n, s in config.sources.items() if s.enabled]}")
     print(f"核心关键词: {config.scoring.core_keywords}")
@@ -202,7 +214,9 @@ def main() -> None:
     draft_p = sub.add_parser("draft", help="生成定制申请包（cover letter + 简历建议 + 面试题）")
     draft_p.add_argument("job_id", help="Job ID（main.py list 查看，如 remoteok:xxx）")
 
-    sub.add_parser("config", help="打印配置")
+    sub.add_parser("config", help="打印配置（config feishu = 测试飞书连接）").add_argument(
+        "config_extra", nargs="?", help="子命令，如 feishu"
+    )
 
     args = parser.parse_args()
 
@@ -240,7 +254,7 @@ def main() -> None:
         print(f"\n✅ 申请包已生成: {out}")
         print("   先填 profile.yaml 再生成，效果更好")
     elif args.cmd == "config":
-        cmd_config()
+        cmd_config(args.config_extra)
     else:
         parser.print_help()
 

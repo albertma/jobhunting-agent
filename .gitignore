@@ -19,6 +19,9 @@ logs/
 drafts/
 profile.yaml
 
+# Personal
+web3career_profile.yaml
+
 # IDE
 .vscode/
 .idea/
